@@ -128,6 +128,8 @@ function makeScalar(builder: TypeBuilder, ft: GQLType): TypeRef {
             return builder.getPrimitiveType("integer");
         case "Float":
             return builder.getPrimitiveType("double");
+        case "DateTime":
+            return builder.getPrimitiveType("date-time");
         default:
             // FIXME: support ID specifically?
             return builder.getStringType(emptyTypeAttributes, StringTypes.unrestricted);
