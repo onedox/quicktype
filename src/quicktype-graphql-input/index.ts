@@ -235,6 +235,7 @@ class GQLQuery {
                     fieldName = null;
                 }
                 result = builder.getEnumType(makeNames(name, fieldName, containingTypeName), new Set(values));
+                optional = true;
                 break;
             case TypeKind.INPUT_OBJECT:
                 // FIXME: Support input objects
@@ -247,6 +248,7 @@ class GQLQuery {
                     emptyTypeAttributes,
                     this.makeIRTypeFromFieldNode(builder, fieldNode, fieldType.ofType, containingTypeName)
                 );
+                optional = true;
                 break;
             case TypeKind.NON_NULL:
                 if (!fieldType.ofType) {
