@@ -9,6 +9,7 @@ import {
     Type,
     ArrayType,
     PrimitiveType,
+    isNumberTypeKind,
     isPrimitiveStringTypeKind,
     targetTypeKindForTransformedStringTypeKind,
     PrimitiveStringTypeKind
@@ -26,11 +27,14 @@ import {
     Transformer,
     DecodingTransformer,
     ParseStringTransformer,
-    ArrayDecodingTransformer
+    ArrayDecodingTransformer,
+    MinMaxLengthCheckTransformer,
+    MinMaxValueTransformer
 } from "./Transformers";
 import { TypeAttributes, emptyTypeAttributes, combineTypeAttributes } from "./attributes/TypeAttributes";
 import { StringTypes } from "./attributes/StringTypes";
 import { RunContext } from "./Run";
+import { minMaxLengthForType, minMaxValueForType } from "./attributes/Constraints";
 
 function transformationAttributes(
     graph: TypeGraph,
@@ -138,7 +142,12 @@ function replaceUnion(
     function transformerForStringType(t: Type): Transformer | undefined {
         const memberRef = memberForKind(t.kind);
         if (t.kind === "string") {
-            return consumer(memberRef);
+            const minMax = minMaxLengthForType(t);
+            if (minMax === undefined) {
+                return consumer(memberRef);
+            }
+            const [min, max] = minMax;
+            return new MinMaxLengthCheckTransformer(graph, getStringType(), consumer(memberRef), min, max);
         } else if (t instanceof EnumType && transformedTypes.has(t)) {
             return makeEnumTransformer(graph, t, getStringType(), consumer(memberRef));
         } else {
@@ -242,6 +251,52 @@ function replaceEnum(
     return builder.getStringType(attributes, StringTypes.unrestricted, forwardingRef);
 }
 
+function replaceNumber(
+    t: PrimitiveType,
+    builder: GraphRewriteBuilder<Type>,
+    forwardingRef: TypeRef,
+    debugPrintTransformations: boolean
+): TypeRef {
+    const stringType = builder.getStringType(emptyTypeAttributes, StringTypes.unrestricted);
+    const [min, max] = defined(minMaxValueForType(t));
+    const transformer = new DecodingTransformer(
+        builder.typeGraph,
+        stringType,
+        new MinMaxValueTransformer(builder.typeGraph, stringType, undefined, min, max)
+    );
+    const reconstitutedAttributes = builder.reconstituteTypeAttributes(t.getAttributes());
+    const attributes = transformationAttributes(
+        builder.typeGraph,
+        builder.getPrimitiveType("double", reconstitutedAttributes, undefined),
+        transformer,
+        debugPrintTransformations
+    );
+    return builder.getPrimitiveType("double", attributes, forwardingRef);
+}
+
+function replaceString(
+    t: PrimitiveType,
+    builder: GraphRewriteBuilder<Type>,
+    forwardingRef: TypeRef,
+    debugPrintTransformations: boolean
+): TypeRef {
+    const [min, max] = defined(minMaxLengthForType(t));
+    const reconstitutedAttributes = builder.reconstituteTypeAttributes(t.getAttributes());
+    const stringType = builder.getStringType(emptyTypeAttributes, StringTypes.unrestricted);
+    const transformer = new DecodingTransformer(
+        builder.typeGraph,
+        stringType,
+        new MinMaxLengthCheckTransformer(builder.typeGraph, stringType, undefined, min, max)
+    );
+    const attributes = transformationAttributes(
+        builder.typeGraph,
+        builder.getStringType(reconstitutedAttributes, undefined),
+        transformer,
+        debugPrintTransformations
+    );
+    return builder.getStringType(attributes, StringTypes.unrestricted, forwardingRef);
+}
+
 function replaceTransformedStringType(
     t: PrimitiveType,
     kind: PrimitiveStringTypeKind,
@@ -289,6 +344,12 @@ export function makeTransformations(ctx: RunContext, graph: TypeGraph, targetLan
         }
         if (t instanceof EnumType) {
             return replaceEnum(t, builder, forwardingRef, ctx.debugPrintTransformations);
+        }
+        if (t.kind === "string") {
+            return replaceString(t as PrimitiveType, builder, forwardingRef, ctx.debugPrintTransformations);
+        }
+        if (isNumberTypeKind(t.kind)) {
+            return replaceNumber(t as PrimitiveType, builder, forwardingRef, ctx.debugPrintTransformations);
         }
         if (isPrimitiveStringTypeKind(t.kind)) {
             return replaceTransformedStringType(

@@ -200,6 +200,7 @@ class GQLQuery {
             case TypeKind.SCALAR:
                 optional = true;
                 result = makeScalar(builder, fieldType);
+                optional = true;
                 break;
             case TypeKind.OBJECT:
             case TypeKind.INTERFACE:
@@ -234,6 +235,7 @@ class GQLQuery {
                     name = fieldNode.name.value;
                     fieldName = null;
                 }
+                optional = true;
                 result = builder.getEnumType(makeNames(name, fieldName, containingTypeName), new Set(values));
                 optional = true;
                 break;
