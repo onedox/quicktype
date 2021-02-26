@@ -194,11 +194,10 @@ class GQLQuery {
         fieldType: GQLType,
         containingTypeName: string
     ): TypeRef => {
-        let optional = hasOptionalDirectives(fieldNode.directives);
+        const optional = hasOptionalDirectives(fieldNode.directives);
         let result: TypeRef;
         switch (fieldType.kind) {
             case TypeKind.SCALAR:
-                optional = true;
                 result = makeScalar(builder, fieldType);
                 optional = true;
                 break;
@@ -258,7 +257,6 @@ class GQLQuery {
                     builder,
                     this.makeIRTypeFromFieldNode(builder, fieldNode, fieldType.ofType, containingTypeName)
                 );
-                optional = false;
                 break;
             default:
                 return assertNever(fieldType.kind);
@@ -296,7 +294,7 @@ class GQLQuery {
         const nameOrOverride = overrideName || gqlType.name;
         const properties = new Map<string, ClassProperty>();
         let selections = expandSelectionSet(selectionSet, gqlType, false);
-        for (; ;) {
+        for (;;) {
             const nextItem = selections.pop();
             if (!nextItem) break;
             const { selection, optional, inType } = nextItem;
